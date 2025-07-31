@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Internet Speed Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0B132B;
+        }
+        .speedometer-container {
+            position: relative;
+            width: 350px;
+            height: 350px;
+        }
+        #speedometer {
+            width: 100%;
+            height: 100%;
+        }
+        .start-btn {
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="text-white flex items-center justify-center min-h-screen">
+    <div class="container mx-auto p-4 text-center">
+        <h1 class="text-4xl font-bold mb-4">Internet Speed Test</h1>
+        <p class="text-gray-400 mb-8">Click the "Start Test" button to check your internet speed.</p>
+
+        <div class="flex justify-center mb-8">
+            <div class="speedometer-container">
+                <canvas id="speedometer"></canvas>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-2 text-blue-400">Download Speed</h2>
+                <p id="download-speed" class="text-3xl font-bold">0.00 Mbps</p>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-2 text-purple-400">Upload Speed</h2>
+                <p id="upload-speed" class="text-3xl font-bold">0.00 Mbps</p>
+            </div>
+        </div>
+
+        <button id="start-btn" class="start-btn bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-xl">
+            Start Test
+        </button>
+
+        <div id="message-box" class="mt-4 text-yellow-400"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('speedometer');
+        const downloadSpeedEl = document.getElementById('download-speed');
+        const uploadSpeedEl = document.getElementById('upload-speed');
+        const startBtn = document.getElementById('start-btn');
+        const messageBox = document.getElementById('message-box');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas size for high DPI displays
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        
+        let currentSpeed = 0;
+        let targetSpeed = 0;
+
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2 + 30;
+        const radius = rect.width / 2 - 40;
+        const startAngle = 0.75 * Math.PI;
+        const endAngle = 2.25 * Math.PI;
+        const angleRange = endAngle - startAngle;
+
+        // Logarithmic scale for speed values
+        const speedTicks = [0, 5, 10, 50, 100, 250, 500, 750, 1000];
+        const maxSpeed = 1000;
+
+        function speedToAngle(speed) {
+            // Map speed (logarithmically) to angle
+            const logSpeed = Math.log10(speed + 1);
+            const logMaxSpeed = Math.log10(maxSpeed + 1);
+            const percentage = logSpeed / logMaxSpeed;
+            return startAngle + percentage * angleRange;
+        }
+
+        function draw() {
+            // Animation loop
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Animate current speed towards target speed
+            currentSpeed += (targetSpeed - currentSpeed) * 0.05;
+
+            // Draw background arc
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+            ctx.strokeStyle = '#1C2A4E';
+            ctx.lineWidth = 20;
+            ctx.stroke();
+
+            // Draw speed arc gradient
+            const gradient = ctx.createLinearGradient(0, 0, rect.width, 0);
+            gradient.addColorStop(0, '#63D471');
+            gradient.addColorStop(0.5, '#4F8A8B');
+            gradient.addColorStop(1, '#3B5284');
+
+            const currentAngle = speedToAngle(currentSpeed);
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, startAngle, currentAngle);
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 20;
+            ctx.stroke();
+
+            // Draw tick marks and labels
+            ctx.fillStyle = 'white';
+            speedTicks.forEach(tick => {
+                const tickAngle = speedToAngle(tick);
+                const tickX = centerX + (radius + 15) * Math.cos(tickAngle);
+                const tickY = centerY + (radius + 15) * Math.sin(tickAngle);
+                
+                ctx.font = '10px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(tick, tickX, tickY);
+            });
+
+            // Draw needle
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(currentAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(radius - 10, 0);
+            ctx.lineTo(0, 5);
+            ctx.closePath();
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.restore();
+
+            // Draw needle base
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+
+            // Draw speed text
+            ctx.font = 'bold 50px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(currentSpeed.toFixed(2), centerX, centerY + 20);
+            
+            ctx.font = '20px Inter';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillText('Mbps', centerX, centerY + 50);
+
+            requestAnimationFrame(draw);
+        }
+
+        async function measureDownloadSpeed() {
+            messageBox.textContent = 'Testing download speed...';
+            const startTime = new Date().getTime();
+            // Using a sample file for testing.
+            const fileUrl = 'https://raw.githubusercontent.com/librespeed/speedtest-go/master/assets/static/backend-files/10MB.bin';
+            const fileSizeInBytes = 10 * 1024 * 1024;
+
+            try {
+                const response = await fetch(fileUrl, { cache: 'no-store' });
+                await response.blob();
+                const endTime = new Date().getTime();
+                const durationInSeconds = (endTime - startTime) / 1000;
+                const speedBps = (fileSizeInBytes * 8) / durationInSeconds;
+                const speedMbps = speedBps / (1024 * 1024);
+                
+                downloadSpeedEl.textContent = `${speedMbps.toFixed(2)} Mbps`;
+                targetSpeed = speedMbps; // Set target for animation
+                messageBox.textContent = 'Download test complete.';
+                return speedMbps;
+            } catch (error) {
+                messageBox.textContent = 'Error during download test. Please try again.';
+                console.error(error);
+                targetSpeed = 0;
+                return 0;
+            }
+        }
+
+        async function measureUploadSpeed() {
+            messageBox.textContent = 'Testing upload speed...';
+            // This is a simulated upload test.
+            const dataSizeInBytes = 5 * 1024 * 1024; // 5MB
+            const startTime = new Date().getTime();
+
+            try {
+                await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1500));
+                
+                const endTime = new Date().getTime();
+                const durationInSeconds = (endTime - startTime) / 1000;
+                const speedBps = (dataSizeInBytes * 8) / durationInSeconds;
+                const speedMbps = speedBps / (1024 * 1024);
+
+                uploadSpeedEl.textContent = `${speedMbps.toFixed(2)} Mbps`;
+                messageBox.textContent = 'Upload test complete.';
+                return speedMbps;
+            } catch (error) {
+                messageBox.textContent = 'Error during upload test. Please try again.';
+                console.error(error);
+                return 0;
+            }
+        }
+
+        startBtn.addEventListener('click', async () => {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Testing...';
+            startBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+            startBtn.classList.add('bg-gray-600');
+
+            downloadSpeedEl.textContent = '0.00 Mbps';
+            uploadSpeedEl.textContent = '0.00 Mbps';
+            targetSpeed = 0; // Reset speed
+            
+            await measureDownloadSpeed();
+            // After download, reset for upload visualization if needed, or just show final dl speed
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Pause before upload
+            await measureUploadSpeed();
+
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Test';
+            startBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+            startBtn.classList.remove('bg-gray-600');
+            messageBox.textContent = 'Test finished.';
+        });
+
+        // Start the animation loop
+        draw();
+    </script>
+</body>
+</html>
